@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student ID Extractor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+      color: #1a1a2e;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #1a1a2e;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #6b7280;
+      margin-bottom: 32px;
+    }
+
+    .layout {
+      display: flex;
+      gap: 24px;
+      width: 100%;
+      max-width: 900px;
+      align-items: flex-start;
+    }
+
+    /* ── Left panel ─────────────────────────────────────── */
+    .left-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .drop-zone {
+      border: 2px dashed #c3c9d6;
+      border-radius: 12px;
+      background: #fff;
+      padding: 32px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      min-height: 180px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .drop-zone.drag-over {
+      border-color: #4f7ef8;
+      background: #f0f4ff;
+    }
+
+    .drop-zone .icon {
+      font-size: 2.4rem;
+      line-height: 1;
+    }
+
+    .drop-zone p { font-size: 0.9rem; color: #6b7280; }
+    .drop-zone p span { color: #4f7ef8; text-decoration: underline; cursor: pointer; }
+
+    #preview-img {
+      max-width: 100%;
+      max-height: 280px;
+      border-radius: 8px;
+      object-fit: contain;
+      display: none;
+      margin-top: 8px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #4f7ef8;
+      color: #fff;
+      transition: background 0.2s, opacity 0.2s;
+    }
+
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn:not(:disabled):hover { background: #3b67e0; }
+
+    .status {
+      font-size: 0.85rem;
+      text-align: center;
+      min-height: 20px;
+      color: #6b7280;
+    }
+
+    .status.error { color: #e53935; }
+
+    /* ── Right panel ─────────────────────────────────────── */
+    .right-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .result-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      display: none;
+    }
+
+    .result-card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 18px;
+      color: #374151;
+    }
+
+    .field-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 10px 0;
+      border-bottom: 1px solid #f3f4f6;
+      gap: 12px;
+    }
+
+    .field-row:last-of-type { border-bottom: none; }
+
+    .field-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      padding-top: 1px;
+    }
+
+    .field-value {
+      font-size: 0.95rem;
+      color: #111827;
+      text-align: right;
+      word-break: break-word;
+    }
+
+    .field-value.empty { color: #d1d5db; font-style: italic; }
+
+    .confidence-badge {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid #f3f4f6;
+      text-align: right;
+    }
+
+    .raw-section {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      display: none;
+    }
+
+    .raw-section summary {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #6b7280;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .raw-list {
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: #374151;
+      line-height: 1.7;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    .raw-list span {
+      display: inline-block;
+      background: #f3f4f6;
+      border-radius: 4px;
+      padding: 2px 6px;
+      margin: 2px 3px 2px 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .layout { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Student ID Extractor</h1>
+  <p class="subtitle">Upload a student ID card image to extract information locally.</p>
+
+  <div class="layout">
+    <!-- Left: upload -->
+    <div class="left-panel">
+      <div class="drop-zone" id="drop-zone">
+        <div class="icon">🪪</div>
+        <p>Drag &amp; drop your ID card here<br>or <span id="browse-link">click to browse</span></p>
+        <img id="preview-img" alt="ID card preview" />
+      </div>
+      <input type="file" id="file-input" accept="image/*" style="display:none" />
+      <button class="btn" id="extract-btn" disabled>Extract Information</button>
+      <p class="status" id="status"></p>
+    </div>
+
+    <!-- Right: results -->
+    <div class="right-panel">
+      <div class="result-card" id="result-card">
+        <h2>Extracted Information</h2>
+
+        <div class="field-row">
+          <span class="field-label">Name</span>
+          <span class="field-value" id="f-name">—</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Student ID</span>
+          <span class="field-value" id="f-student-id">—</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Department</span>
+          <span class="field-value" id="f-department">—</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Expiry Date</span>
+          <span class="field-value" id="f-expiry">—</span>
+        </div>
+        <div class="field-row">
+          <span class="field-label">University</span>
+          <span class="field-value" id="f-university">—</span>
+        </div>
+
+        <p class="confidence-badge" id="f-confidence"></p>
+      </div>
+
+      <details class="raw-section" id="raw-section">
+        <summary>Raw OCR text</summary>
+        <div class="raw-list" id="raw-list"></div>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    const dropZone    = document.getElementById('drop-zone');
+    const fileInput   = document.getElementById('file-input');
+    const browseLink  = document.getElementById('browse-link');
+    const previewImg  = document.getElementById('preview-img');
+    const extractBtn  = document.getElementById('extract-btn');
+    const statusEl    = document.getElementById('status');
+    const resultCard  = document.getElementById('result-card');
+    const rawSection  = document.getElementById('raw-section');
+    const rawList     = document.getElementById('raw-list');
+
+    let selectedFile = null;
+
+    function handleFile(file) {
+      if (!file || !file.type.startsWith('image/')) {
+        setStatus('Please select a valid image file.', true);
+        return;
+      }
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = e => {
+        previewImg.src = e.target.result;
+        previewImg.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+      extractBtn.disabled = false;
+      setStatus('');
+    }
+
+    // Drag & drop
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+
+    // Click-to-browse
+    browseLink.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('click', e => {
+      if (e.target !== browseLink) fileInput.click();
+    });
+    fileInput.addEventListener('change', e => {
+      if (e.target.files[0]) handleFile(e.target.files[0]);
+    });
+
+    // Extract
+    extractBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      extractBtn.disabled = true;
+      setStatus('Extracting… this may take a few seconds on first run.');
+      resultCard.style.display = 'none';
+      rawSection.style.display = 'none';
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const resp = await fetch('/extract', { method: 'POST', body: formData });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ detail: 'Server error' }));
+          throw new Error(err.detail || 'Server error');
+        }
+        const data = await resp.json();
+
+        setField('f-name',       data.name);
+        setField('f-student-id', data.student_id);
+        setField('f-department', data.department);
+        setField('f-expiry',     data.expiry_date);
+        setField('f-university', data.university);
+
+        document.getElementById('f-confidence').textContent =
+          `OCR confidence: ${(data.confidence * 100).toFixed(1)}%`;
+
+        // Raw text tokens
+        rawList.innerHTML = (data.raw_text || [])
+          .map(t => `<span>${escapeHtml(t)}</span>`)
+          .join('');
+
+        resultCard.style.display = 'block';
+        rawSection.style.display = 'block';
+        setStatus('Done.');
+      } catch (err) {
+        setStatus('Error: ' + err.message, true);
+      } finally {
+        extractBtn.disabled = false;
+      }
+    });
+
+    function setField(id, value) {
+      const el = document.getElementById(id);
+      if (value) {
+        el.textContent = value;
+        el.classList.remove('empty');
+      } else {
+        el.textContent = 'Not found';
+        el.classList.add('empty');
+      }
+    }
+
+    function setStatus(msg, isError = false) {
+      statusEl.textContent = msg;
+      statusEl.className = 'status' + (isError ? ' error' : '');
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+  </script>
+</body>
+</html>
