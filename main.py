@@ -6,7 +6,7 @@ from typing import List, Optional
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
@@ -45,9 +45,14 @@ async def serve_frontend() -> HTMLResponse:
 
 
 @app.post("/extract", response_model=StudentIDResponse)
-async def extract(file: UploadFile = File(...)) -> StudentIDResponse:
+async def extract(
+    file: UploadFile = File(...),
+    model: str = Form(extractor.DEFAULT_MODEL),
+) -> StudentIDResponse:
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image.")
+    if model not in extractor.AVAILABLE_MODELS:
+        raise HTTPException(status_code=400, detail=f"Unknown model '{model}'. Choose from: {extractor.AVAILABLE_MODELS}")
 
     contents = await file.read()
     nparr = np.frombuffer(contents, np.uint8)
@@ -55,20 +60,13 @@ async def extract(file: UploadFile = File(...)) -> StudentIDResponse:
     if img is None:
         raise HTTPException(status_code=422, detail="Could not decode image.")
 
-    # Upscale very small images to improve OCR accuracy
-    h, w = img.shape[:2]
-    if max(h, w) < 800:
-        scale = 800 / max(h, w)
-        img = cv2.resize(img, None, fx=scale, fy=scale,
-                         interpolation=cv2.INTER_CUBIC)
-
     boxes = ocr_engine.run_ocr(img)
 
     _log(f"── OCR results ({len(boxes)} boxes) ──────────────────")
     for i, b in enumerate(boxes):
         _log(f"  [{i}] score={b.score:.2f}  {b.text!r}")
 
-    fields = extractor.extract_fields(boxes)
+    fields = extractor.extract_fields(boxes, model)
 
     _log("── Extracted fields ────────────────────────")
     for key in ("name", "student_id", "department", "expiry_date", "university"):
@@ -90,10 +88,6 @@ async def debug_ocr(file: UploadFile = File(...)) -> dict:
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img is None:
         raise HTTPException(status_code=422, detail="Could not decode image.")
-    h, w = img.shape[:2]
-    if max(h, w) < 800:
-        scale = 800 / max(h, w)
-        img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     boxes = ocr_engine.run_ocr(img)
     return {
         "box_count": len(boxes),

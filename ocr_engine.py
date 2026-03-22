@@ -40,11 +40,52 @@ def is_ready() -> bool:
     return _ocr_instance is not None
 
 
-def run_ocr(img: np.ndarray) -> List[OCRBox]:
+def preprocess(img: np.ndarray) -> np.ndarray:
     """
-    img: BGR numpy array from cv2.imdecode
-    Returns OCRBox list sorted in reading order (top→bottom, left→right).
+    Prepare a BGR image for OCR:
+      1. Upscale if too small
+      2. Deskew
+      3. CLAHE contrast enhancement
+      4. Denoise
     """
+    # 1. Upscale very small images
+    h, w = img.shape[:2]
+    if max(h, w) < 800:
+        scale = 800 / max(h, w)
+        img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+
+    # # 2. Deskew — find dominant angle via edges and rotate to correct it
+    # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+    # points = np.column_stack(np.where(edges > 0))
+    # if len(points) >= 5:
+    #     angle = cv2.minAreaRect(points)[2]
+    #     # minAreaRect returns angles in [-90, 0); normalise to (-45, 45]
+    #     if angle < -45:
+    #         angle += 90
+    #     if abs(angle) > 0.5:  # skip tiny corrections that add noise
+    #         h, w = img.shape[:2]
+    #         M = cv2.getRotationMatrix2D((w / 2, h / 2), angle, 1.0)
+    #         img = cv2.warpAffine(img, M, (w, h),
+    #                              flags=cv2.INTER_CUBIC,
+    #                              borderMode=cv2.BORDER_REPLICATE)
+
+    # 3. CLAHE on luminance channel to fix glare / low contrast
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    l = clahe.apply(l)
+    img = cv2.cvtColor(cv2.merge([l, a, b]), cv2.COLOR_LAB2BGR)
+
+    # 4. Denoise — conservative strength to avoid blurring thin strokes
+    img = cv2.fastNlMeansDenoisingColored(img, None, h=7, hColor=7,
+                                          templateWindowSize=7,
+                                          searchWindowSize=21)
+    return img
+
+
+def _ocr_boxes(img: np.ndarray) -> List[OCRBox]:
+    """Run OCR on an already-preprocessed BGR image and return sorted boxes."""
     ocr = get_ocr()
     raw = ocr.ocr(img, cls=True)
 
@@ -77,3 +118,11 @@ def run_ocr(img: np.ndarray) -> List[OCRBox]:
     band = max(median_h * 0.6, 8)
     boxes.sort(key=lambda b: (round(b.cy / band), b.cx))
     return boxes
+
+
+def run_ocr(img: np.ndarray) -> List[OCRBox]:
+    """
+    Preprocess then run OCR on a raw BGR image from cv2.imdecode.
+    Returns OCRBox list sorted in reading order (top→bottom, left→right).
+    """
+    return _ocr_boxes(preprocess(img))

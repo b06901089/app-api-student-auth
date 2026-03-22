@@ -85,7 +85,7 @@
       margin-top: 8px;
     }
 
-    .btn {
+.btn {
       width: 100%;
       padding: 12px;
       border: none;
@@ -100,6 +100,30 @@
 
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn:not(:disabled):hover { background: #3b67e0; }
+
+    .model-selector {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .model-selector label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #6b7280;
+      white-space: nowrap;
+    }
+
+    .model-selector select {
+      flex: 1;
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      color: #111827;
+      background: #fff;
+      cursor: pointer;
+    }
 
     .status {
       font-size: 0.85rem;
@@ -224,6 +248,13 @@
         <img id="preview-img" alt="ID card preview" />
       </div>
       <input type="file" id="file-input" accept="image/*" style="display:none" />
+      <div class="model-selector">
+        <label for="model-select">Model</label>
+        <select id="model-select">
+          <option value="llama3.1:8b">llama3.1:8b</option>
+          <option value="llama3.2:3b">llama3.2:3b</option>
+        </select>
+      </div>
       <button class="btn" id="extract-btn" disabled>Extract Information</button>
       <p class="status" id="status"></p>
     </div>
@@ -270,6 +301,7 @@
     const browseLink  = document.getElementById('browse-link');
     const previewImg  = document.getElementById('preview-img');
     const extractBtn  = document.getElementById('extract-btn');
+    const modelSelect = document.getElementById('model-select');
     const statusEl    = document.getElementById('status');
     const resultCard  = document.getElementById('result-card');
     const rawSection  = document.getElementById('raw-section');
@@ -326,6 +358,7 @@
 
       const formData = new FormData();
       formData.append('file', selectedFile);
+      formData.append('model', modelSelect.value);
 
       try {
         const resp = await fetch('/extract', { method: 'POST', body: formData });

@@ -19,13 +19,6 @@ def process(image_path: Path) -> dict:
     if img is None:
         return {"error": "could not decode image"}
 
-    # Upscale small images (same logic as main.py)
-    h, w = img.shape[:2]
-    if max(h, w) < 800:
-        import numpy as np
-        scale = 800 / max(h, w)
-        img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-
     t0 = time.perf_counter()
     boxes = run_ocr(img)
     ocr_time = time.perf_counter() - t0

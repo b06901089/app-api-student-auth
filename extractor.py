@@ -17,7 +17,8 @@ def _log(msg: str) -> None:
     ts = datetime.now().strftime("%H:%M:%S")
     print(f"{ts} [APP] {msg}", flush=True)
 
-OLLAMA_MODEL = "llama3.2:3b"
+DEFAULT_MODEL = "llama3.1:8b"
+AVAILABLE_MODELS = ["llama3.2:3b", "llama3.1:8b"]
 
 _SYSTEM_PROMPT = """\
 You will receive a list of text tokens extracted via OCR from a potential student ID card.
@@ -33,19 +34,19 @@ Return ONLY a valid JSON object with exactly these keys:
 }
 
 Rules:
-- Token may contain more information than needed, extract the essential parts
-- "name" is the student's full personal name
+- "name" is the student's personal full name
 - "student_id" is the alphanumeric ID/matriculation number
 - "department" is the academic department, faculty, or program
 - "expiry_date" is any validity or expiry date on the card
 - "university" is the institution name
+- Tokens may contain additional information, extract the essential parts
+- "department", "university" may contain typos in the tokens, fix the typo if you are very confident
 - Use null for any field not present in the tokens
-- Do not invent values not present in the input
 - Return only the JSON, no explanation
 """
 
 
-def extract_fields(boxes: List[OCRBox]) -> dict:
+def extract_fields(boxes: List[OCRBox], model: str = DEFAULT_MODEL) -> dict:
     tokens = [b.text for b in boxes]
     confidence = _mean_conf(boxes)
 
@@ -62,7 +63,7 @@ def extract_fields(boxes: List[OCRBox]) -> dict:
     if not tokens:
         return result
 
-    extracted = _extract_via_llm(tokens)
+    extracted = _extract_via_llm(tokens, model)
     if extracted:
         result.update(extracted)
     else:
@@ -73,15 +74,15 @@ def extract_fields(boxes: List[OCRBox]) -> dict:
     return result
 
 
-def _extract_via_llm(tokens: list[str]) -> Optional[dict]:
+def _extract_via_llm(tokens: list[str], model: str = DEFAULT_MODEL) -> Optional[dict]:
     user_msg = "OCR tokens:\n" + "\n".join(f"- {t}" for t in tokens)
     try:
-        _log(f"── Ollama request (model={OLLAMA_MODEL}) ────────────────")
+        _log(f"── Ollama request (model={model}) ────────────────")
         for t in tokens:
             _log(f"  token: {t!r}")
 
         response = ollama.chat(
-            model=OLLAMA_MODEL,
+            model=model,
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user",   "content": user_msg},
